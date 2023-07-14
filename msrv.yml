@@ -1,0 +1,241 @@
+---
+- hosts: msrv
+  become: yes
+  handlers:
+  - name: start nginx
+    service: name=nginx state=started
+  - name: restart nginx
+    service: name=nginx state=restarted
+  tasks:
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+
+  - name: install other needed softwares
+    apt:
+      pkg:
+      - bind9-host
+      - sudo
+      - acl
+      - bundler
+      - certbot
+      - jekyll
+      - pandoc
+      - python3-certbot-nginx
+      - python3-click
+      - nginx
+      - ruby
+      - ruby-asciidoctor
+      - redis-server
+      - optipng
+      - pngquant
+      - jhead
+      - jpegoptim
+      - gifsicle
+      - nodejs
+      - imagemagick
+      - ffmpeg
+      - libpq-dev
+      - libxml2-dev
+      - libxslt1-dev
+      - file
+      - g++
+      - libprotobuf-dev
+      - protobuf-compiler
+      - pkg-config
+      - gcc
+      - autoconf
+      - bison
+      - build-essential
+      - libssl-dev
+      - libyaml-dev
+      - libreadline6-dev
+      - zlib1g-dev
+      - libncurses5-dev
+      - libffi-dev 
+      - libgdbm-dev
+      - libidn11-dev
+      - libicu-dev
+      - libjemalloc-dev
+      - git
+
+  - name: RTC in UTC
+    command: timedatectl set-local-rtc 0
+  - name: set local to east coast
+    command: timedatectl set-timezone America/New_York
+
+  - name: remove apparmor
+    apt: pkg=apparmor state=absent
+
+  # only allow login with ssh keys
+
+  # install postgres
+  - name: Ensure PostgreSQL Python libraries are installed.
+    apt:
+      name: python3-psycopg2
+      state: present
+  - name: Ensure PostgreSQL packages are installed.
+    apt:
+      pkg:
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+  - name: PostgreSQL users
+    postgresql_user:
+      name: mastodon
+      password: "toottoot123"
+    become: true
+    become_user: postgres
+    vars:
+      ansible_ssh_pipelining: true
+  - name: Create mastodon postgres database
+    become: true
+    become_user: postgres
+    postgresql_db:
+      name: mastodon
+      owner: mastodon
+      state: present
+    vars:
+      ansible_ssh_pipelining: true
+  - name: Ensure PostgreSQL users are configured correctly.
+    postgresql_user:
+      name: mastodon
+      password: "toottoot123"
+      priv: "ALL"
+      role_attr_flags: "CREATEDB"
+      db: mastodon
+      state: present
+    become: true
+    become_user: postgres
+    vars:
+      ansible_ssh_pipelining: true
+# - name: give access to db
+#   become: true
+#   become_user: postgres
+#   postgresql_user: 
+#     db: mastodon
+#     name: mastodon
+#     password: "toottoot123"
+#     priv: ALL
+#     state: present
+  # make sure mastodon is owner of and can create db
+
+  - name: Add Mastodon unix user
+    ansible.builtin.user:
+      name: mastodon
+      shell: /sbin/nologin
+      create_home: true
+      state: present
+  # clone the mastodon software v 3.5.3
+  - name: Git checkout mastodon software
+    become: true
+    become_user: mastodon
+    ansible.builtin.git:
+      repo: 'https://github.com/tootsuite/mastodon.git'
+      dest: /home/mastodon/mastodon
+      version: fbcbf7898
+  - name: Install Ruby dependencies
+    become_user: mastodon
+    become: true
+    shell: |
+      gem install bundler
+      cd /home/mastodon/mastodon
+      bundle config deployment 'true'
+      bundle config without 'development test'
+      bundle install -j1
+  # rsync stuff over to /var/www????
+  # set up /var/www???
+  - name: Recursively change ownership of mastodon directory
+    ansible.builtin.file:
+      path: /var/www/mastodon
+      state: directory
+      recurse: yes
+      owner: mastodon
+      group: mastodon
+  # gem install bundler
+  - name: download nodejs file
+    ansible.builtin.get_url:
+      url: https://deb.nodesource.com/setup_16.x
+      dest: /tmp/nodesource_setup.sh
+      mode: '0755'
+  - name: run script to allow node apt install
+    ansible.builtin.command:
+      cmd: /tmp/nodesource_setup.sh
+      creates: /etc/apt/sources.list.d/nodesource.list
+  - name: install nodejs
+    apt:
+      pkg:
+      - nodejs
+
+  - name: add yarn apt key
+    ansible.builtin.apt_key:
+      url: https://dl.yarnpkg.com/debian/pubkey.gpg
+      state: present
+  - name: add yarn source
+    ansible.builtin.apt_repository:
+      repo: deb https://dl.yarnpkg.com/debian/ stable main
+      state: present
+      filename: yarn
+  - name: install yarn
+    apt:
+      pkg:
+      - yarn
+
+  # run mastodon setup wizard??? or just cp .env.production file??
+  # create admin user
+  # config nginx
+  - name: set up nginx site
+    copy:
+      src: mastodon.conf
+      dest: /etc/nginx/conf.d/mastodon.conf
+      mode: 0644
+    notify: restart nginx
+  # set up python3-certbot stuff
+  - name: set up certbot nginx
+    ansible.builtin.command:
+      cmd: certbot --nginx -d social.cs.swarthmore.edu --agree-tos --non-interactive -m knerr@cs.swarthmore.edu
+      creates: /etc/letsencrypt
+
+  - name: Remove the default Nginx configuration
+    file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+    notify: restart nginx
+
+  - name: cp mastodon setup script
+    copy:
+      src: mastodon.sh
+      dest: /home/mastodon/mastodon.sh
+      mode: 0755
+  - name: run script to do manual stuff
+    ansible.builtin.command:
+      cmd: /home/mastodon/mastodon.sh
+      creates: /home/mastodon/scriptalreadyran
+      # set up mastodon backup scripts???
+  - name: copy mastodon systemd files
+    copy:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+    with_items:
+      - src: mastodon-sidekiq.service
+        dest: /etc/systemd/system/mastodon-sidekiq.service
+      - src: mastodon-streaming.service
+        dest: /etc/systemd/system/mastodon-streaming.service
+      - src: mastodon-web.service
+        dest: /etc/systemd/system/mastodon-web.service
+  - name: start mastodon web
+    ansible.builtin.systemd:
+      state: started
+      name: mastodon-web
+      daemon_reload: true
+  - name: start mastodon sidekiq
+    ansible.builtin.systemd:
+      state: started
+      name: mastodon-sidekiq
+      daemon_reload: true
+  - name: start mastodon streaming
+    ansible.builtin.systemd:
+      state: started
+      name: mastodon-streaming
+      daemon_reload: true
+...
