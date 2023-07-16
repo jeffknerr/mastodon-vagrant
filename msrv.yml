@@ -83,7 +83,7 @@
   - name: PostgreSQL users
     postgresql_user:
       name: mastodon
-      password: "toottoot123"
+      password: "TOOT.123"
     become: true
     become_user: postgres
     vars:
@@ -100,7 +100,7 @@
   - name: Ensure PostgreSQL users are configured correctly.
     postgresql_user:
       name: mastodon
-      password: "toottoot123"
+      password: "TOOT.123"
       priv: "ALL"
       role_attr_flags: "CREATEDB"
       db: mastodon
@@ -115,7 +115,7 @@
 #   postgresql_user: 
 #     db: mastodon
 #     name: mastodon
-#     password: "toottoot123"
+#     password: "TOOT.123"
 #     priv: ALL
 #     state: present
   # make sure mastodon is owner of and can create db
@@ -191,10 +191,10 @@
       mode: 0644
     notify: restart nginx
   # set up python3-certbot stuff
-  - name: set up certbot nginx
-    ansible.builtin.command:
-      cmd: certbot --nginx -d social.cs.swarthmore.edu --agree-tos --non-interactive -m knerr@cs.swarthmore.edu
-      creates: /etc/letsencrypt
+# - name: set up certbot nginx
+#   ansible.builtin.command:
+#     cmd: certbot --nginx -d social.cs.swarthmore.edu --agree-tos --non-interactive -m knerr@cs.swarthmore.edu
+#     creates: /etc/letsencrypt
 
   - name: Remove the default Nginx configuration
     file:
