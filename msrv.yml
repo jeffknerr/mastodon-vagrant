@@ -67,7 +67,7 @@
   - name: remove apparmor
     apt: pkg=apparmor state=absent
 
-  # only allow login with ssh keys
+  # only allow login with ssh keys to mastodon server??
 
   # install postgres
   - name: Ensure PostgreSQL Python libraries are installed.
@@ -109,16 +109,6 @@
     become_user: postgres
     vars:
       ansible_ssh_pipelining: true
-# - name: give access to db
-#   become: true
-#   become_user: postgres
-#   postgresql_user: 
-#     db: mastodon
-#     name: mastodon
-#     password: "TOOT.123"
-#     priv: ALL
-#     state: present
-  # make sure mastodon is owner of and can create db
 
   - name: Add Mastodon unix user
     ansible.builtin.user:
@@ -126,33 +116,19 @@
       shell: /sbin/nologin
       create_home: true
       state: present
-  # clone the mastodon software v 3.5.3
+  # clone the mastodon software v 3.5.10
   - name: Git checkout mastodon software
     become: true
     become_user: mastodon
     ansible.builtin.git:
       repo: 'https://github.com/tootsuite/mastodon.git'
       dest: /home/mastodon/mastodon
-      version: fbcbf7898
-  - name: Install Ruby dependencies
-    become_user: mastodon
-    become: true
+#     version: fbcbf7898
+      version: 687421ebb
+  # gem install bundler
+  - name: install ruby dependency manager
     shell: |
       gem install bundler
-      cd /home/mastodon/mastodon
-      bundle config deployment 'true'
-      bundle config without 'development test'
-      bundle install -j1
-  # rsync stuff over to /var/www????
-  # set up /var/www???
-  - name: Recursively change ownership of mastodon directory
-    ansible.builtin.file:
-      path: /var/www/mastodon
-      state: directory
-      recurse: yes
-      owner: mastodon
-      group: mastodon
-  # gem install bundler
   - name: download nodejs file
     ansible.builtin.get_url:
       url: https://deb.nodesource.com/setup_16.x
@@ -183,6 +159,28 @@
 
   # run mastodon setup wizard??? or just cp .env.production file??
   # create admin user
+  - name: cp mastodon setup script
+    copy:
+      src: mastodon.sh
+      dest: /home/mastodon/mastodon.sh
+      mode: 0755
+  - name: cp mastodon setup script answers
+    copy:
+      src: setup.txt
+      dest: /home/mastodon/setup.txt
+      mode: 0755
+  - name: run script to do manual stuff
+    ansible.builtin.command:
+      cmd: /home/mastodon/mastodon.sh 
+      creates: /home/mastodon/scriptalreadyran
+# - name: install dependency pkgs for mastodon
+#   become_user: mastodon
+#   become: true
+#   shell: |
+#     cd /home/mastodon/mastodon
+#     bundle config deployment 'true'
+#     bundle config without 'development test'
+#     bundle install -j1
   # config nginx
   - name: set up nginx site
     copy:
@@ -190,10 +188,11 @@
       dest: /etc/nginx/conf.d/mastodon.conf
       mode: 0644
     notify: restart nginx
-  # set up python3-certbot stuff
+# if on a real server, would use letsencrypt to set up real ssl cert
+# set up python3-certbot stuff
 # - name: set up certbot nginx
 #   ansible.builtin.command:
-#     cmd: certbot --nginx -d social.cs.swarthmore.edu --agree-tos --non-interactive -m knerr@cs.swarthmore.edu
+#     cmd: certbot --nginx -d host.example.com --agree-tos --non-interactive -m youremail@example.com
 #     creates: /etc/letsencrypt
 
   - name: Remove the default Nginx configuration
@@ -202,16 +201,6 @@
       state: absent
     notify: restart nginx
 
-  - name: cp mastodon setup script
-    copy:
-      src: mastodon.sh
-      dest: /home/mastodon/mastodon.sh
-      mode: 0755
-  - name: run script to do manual stuff
-    ansible.builtin.command:
-      cmd: /home/mastodon/mastodon.sh
-      creates: /home/mastodon/scriptalreadyran
-      # set up mastodon backup scripts???
   - name: copy mastodon systemd files
     copy:
       src: "{{ item.src }}"
