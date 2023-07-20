@@ -41,20 +41,33 @@ $ vg status
 # accept the ssh host keys
 $ ssh -i ~/.vagrant.d/insecure_private_key vagrant@192.168.56.30
 $ ansible msrv -a date
-# this one could take 20+ minutes...
+# this one could take 25-45 minutes...
 $ ansible-playbook msrv.yml
 # now check stuff
 $ vg ssh msrv
-msrv$ sudo systemctl status mastodon-web mastodon-sidekiq mastodon-streaming
+vagrant@social:~$ sudo systemctl status mastodon-web mastodon-sidekiq mastodon-streaming
 ```
 
 That *should* set up a mastodon server at 192.168.56.30.
 To see if the app works, point your browser to
-https://192.168.56.30, 
+`https://192.168.56.30`, 
 accept the security risk of using a self-signed cert,
 and then
 log in as `superadmin` user with email in `setup.txt` and 
 password from playbook output in `output.txt` on the vm.
+
+```
+$ vg ssh msrv
+vagrant@social:~$ cat /home/mastodon/output.txt
+Your instance is identified by its domain name. Changing it afterward will break things.
+Domain name: social.test
+...
+...
+E-mail: yourusername@example.com
+You can login with the password: 9d17405f3665c2488e99ce51ed8e2b30
+You can change your password once you login.
+vagrant@social:~$
+```
 
 When finished, you can use `vg halt` to stop the virtual machine,
 and `vg destroy` to remove it completely (useful if you want to
@@ -107,17 +120,17 @@ up the DB. That's why `\dt` doesn't show anything.
 
 
 ```
-vg halt
-vg destroy
-vg up
-vg status
-vim ~/.ssh/known_hosts
+$ vg halt
+$ vg destroy
+$ vg up
+$ vg status
+$ vim ~/.ssh/known_hosts
 # delete old ssh keys...or:
-ssh-keygen -f "/home/knerr/.ssh/known_hosts" -R "192.168.56.30"
+$ ssh-keygen -f "/home/knerr/.ssh/known_hosts" -R "192.168.56.30"
 # then accept new key
-ssh -i ~/.vagrant.d/insecure_private_key vagrant@192.168.56.30
-ansible msrv -a date
-ansible-playbook msrv.yml
-vg ssh msrv
+$ ssh -i ~/.vagrant.d/insecure_private_key vagrant@192.168.56.30
+$ ansible msrv -a date
+$ ansible-playbook msrv.yml
+$ vg ssh msrv
 ```
 
