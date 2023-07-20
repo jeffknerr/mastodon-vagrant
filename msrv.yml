@@ -173,14 +173,17 @@
     ansible.builtin.command:
       cmd: /home/mastodon/mastodon.sh 
       creates: /home/mastodon/scriptalreadyran
-# - name: install dependency pkgs for mastodon
-#   become_user: mastodon
-#   become: true
-#   shell: |
-#     cd /home/mastodon/mastodon
-#     bundle config deployment 'true'
-#     bundle config without 'development test'
-#     bundle install -j1
+# NOTE: pay attention to password it outputs for admin account
+  - name: fix dev.rb file to allow private ip
+    ansible.builtin.lineinfile:
+      path: /home/mastodon/mastodon/config/environments/development.rb
+      insertafter: '^Rails.application.configure do\n'
+      line: '  config.hosts << "192.168.56.30"'
+  - name: fix prod.rb file to allow private ip
+    ansible.builtin.lineinfile:
+      path: /home/mastodon/mastodon/config/environments/production.rb
+      insertafter: '^Rails.application.configure do\n'
+      line: '  config.hosts << "192.168.56.30"'
   # config nginx
   - name: set up nginx site
     copy:

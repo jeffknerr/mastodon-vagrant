@@ -1,5 +1,5 @@
 # mastodon-vagrant
-set up mastodon server example using vagrant and ansible
+set up a test mastodon server using vagrant and ansible
 
 Following this *excellent* guide:
 
@@ -11,12 +11,14 @@ NOTE: all of the below was done on an ubuntu 22.04 computer with 32GB
 of memory (July 2023). Also, as mentioned in the guide above, the vm
 needs 3GB of memory to be able to compile the CSS/JS assets.
 
+Outline:
 - install ansible and vagrant
 - set up ansible "hosts" file
 - clone this repo
 - use `vagrant up` to start vm
 - use `ansible-playbook msrv.yml` to run playbook/config the vm
 
+Commands:
 ```
 $ alias vg='vagrant'
 $ export ANSIBLE_NOCOWS=1
@@ -33,36 +35,31 @@ ansible_user=vagrant
 ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_key
 $ git clone https://github.com/jeffknerr/mastodon-vagrant.git
 $ cd mastodon-vagrant
-# this next one takes a few minutes...
+# this next one takes a minute or two...
 $ vg up
 $ vg status
 # accept the ssh host keys
 $ ssh -i ~/.vagrant.d/insecure_private_key vagrant@192.168.56.30
 $ ansible msrv -a date
+# this one could take 20+ minutes...
 $ ansible-playbook msrv.yml
-# just to check stuff
+# now check stuff
 $ vg ssh msrv
-# see if the app works (log in as admin user with password pass.123)
-# point browser to
-# https://192.168.56.30
-# and accept the security risk of using a self-signed cert
+msrv$ sudo systemctl status mastodon-web mastodon-sidekiq mastodon-streaming
 ```
+
+That *should* set up a mastodon server at 192.168.56.30.
+To see if the app works, point your browser to
+https://192.168.56.30, 
+accept the security risk of using a self-signed cert,
+and then
+log in as `superadmin` user with email in `setup.txt` and 
+password from playbook output in `output.txt` on the vm.
 
 When finished, you can use `vg halt` to stop the virtual machine,
 and `vg destroy` to remove it completely (useful if you want to
 start over).
 
-## todo
-
-- how to run the config commands via a playbook...
-- how to set up the db via a playbook
-- how to set up the admin user
-
-```
-/home/mastodon/mastodon$ sudo -u mastodon RAILS_ENV=production bundle exec rake mastodon:setup
-RAILS_ENV=production rails db:setup
-RAILS_ENV=production rails assets:precompile 
-```
 
 ## postgres commands
 
@@ -104,4 +101,23 @@ mastodon=#
 
 The above is *before* I've run the rails bundle commands to set 
 up the DB. That's why `\dt` doesn't show anything.
+
+
+## starting over?
+
+
+```
+vg halt
+vg destroy
+vg up
+vg status
+vim ~/.ssh/known_hosts
+# delete old ssh keys...or:
+ssh-keygen -f "/home/knerr/.ssh/known_hosts" -R "192.168.56.30"
+# then accept new key
+ssh -i ~/.vagrant.d/insecure_private_key vagrant@192.168.56.30
+ansible msrv -a date
+ansible-playbook msrv.yml
+vg ssh msrv
+```
 
